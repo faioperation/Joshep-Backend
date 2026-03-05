@@ -9,6 +9,10 @@ import random
 from rest_framework import viewsets
 from .serializers import FAQSerializers,ResetPasswordSerializer
 from django.contrib.auth import logout
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.permissions import AllowAny
+
+
 # from django.utils.decorators import method_decorator
 # from django.views.decorators.csrf import csrf_exempt
 from.models import FAQ
@@ -25,14 +29,24 @@ OTP_STORAGE = {}  # simple temporary storage
 
 # @method_decorator(csrf_exempt, name='dispatch')
 class LoginView(APIView):
+    permission_classes = [AllowAny]  
+
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        user = serializer.validated_data["user"]
-        login(request, user)
-
-        return Response({"message": "Login successful"}, status=status.HTTP_200_OK)
+        if serializer.is_valid():
+            user = serializer.validated_data["user"]
+            
+            # JWT Token জেনারেট করা
+            refresh = RefreshToken.for_user(user)
+            
+            return Response({
+                "message": "Login successful",
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+                "email": user.email
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 # @method_decorator(csrf_exempt, name='dispatch')
 class ForgotPasswordView(APIView):
     def post(self, request):
@@ -88,7 +102,6 @@ class VerifyOTPView(APIView):
         cache.delete(f"otp_{email}")
         return True
     
-
 # @method_decorator(csrf_exempt, name='dispatch')
 class ResendOTPView(APIView):
     def post(self, request):
