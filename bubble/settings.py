@@ -2,8 +2,16 @@ import os
 from pathlib import Path
 from decouple import config
 from datetime import timedelta
+from dotenv import load_dotenv
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+load_dotenv()
+
+REZGO_CID = os.getenv('REZGO_CID')
+REZGO_API_KEY = os.getenv('REZGO_API_KEY')
+REZGO_DOMAIN = os.getenv('REZGO_DOMAIN')
 
 
 # ==========================
@@ -48,7 +56,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'users',
     'Dashboards',
-    'weather '
+    'bookinge'
 ]
 
 MIDDLEWARE = [
