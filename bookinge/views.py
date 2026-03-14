@@ -3,109 +3,85 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.core.mail import send_mail
 from django.conf import settings
-from .models import BookingInquiry, RezgoLocation  # Import the required models
-from .utils import check_rezgo_availability
+from .models import BookingInquiry, RezgoLocation
+from .utils import check_rezgo_availability, commit_rezgo_booking
 
 
 @csrf_exempt
 def process_booking_inquiry(request):
     """
-    View to receive booking inquiries from the Frontend or Postman.
-    This function automatically finds the corresponding Rezgo UID based on the city name.
+    Handles booking inquiries submitted from the website form.
+    This endpoint checks Rezgo availability and sends the booking link via email.
+    It does NOT create the booking directly in Rezgo.
     """
 
     if request.method == "POST":
         try:
-            # 1. Receive data sent from the frontend
             data = json.loads(request.body)
-            city_name = data.get("location")  # Example: user sends "Manchester"
 
-            # 2. Smart logic to find the Rezgo UID using the city name
+            city_name = data.get("location")
+
+            # Attempt to map the city name to a Rezgo Item UID from the database
             try:
-                # Check the mapping saved in the Django Admin Panel
                 location_entry = RezgoLocation.objects.get(city_name=city_name)
-                rezgo_search_param = location_entry.rezgo_uid  # Example: "419690"
-
+                rezgo_uid = location_entry.rezgo_uid
             except RezgoLocation.DoesNotExist:
-                # If the city is not found in the database,
-                # temporarily search using the city name itself (Fallback method)
-                rezgo_search_param = city_name
+                # If mapping does not exist, use the city name as fallback
+                rezgo_uid = city_name 
 
-            # 3. Save the user's main inquiry in the database
+            # Store the booking inquiry in the database
             inquiry = BookingInquiry.objects.create(
                 name=data.get("name"),
-                phone=data.get("phone"),
+                phone=data.get("phone", "N/A"),
                 email=data.get("email"),
-                location=city_name,  # Store the city name in the database
-                event_type=data.get("event_type"),
-                group_size=data.get("group_size"),
+                location=city_name,
                 preferred_date=data.get("preferred_date"),
                 preferred_time=data.get("preferred_time"),
-                message=data.get("message", ""),
             )
 
-            # 4. Check availability using the Rezgo API
-            # The UID (or fallback search parameter) is sent to the API
-            available_slots = check_rezgo_availability(
-                rezgo_search_param,
-                data.get("preferred_date"),
+            # Check availability using Rezgo Search API
+            slot = check_rezgo_availability(
+                rezgo_uid,
+                inquiry.preferred_date,
                 inquiry.preferred_time
             )
 
-            # 5. Email and response logic
-            if available_slots:
-                # If a slot is available
+            if slot:
+                # Generate booking URL for the customer
+                booking_url = f"https://{settings.REZGO_DOMAIN}.rezgo.com/book?item={rezgo_uid}&date={inquiry.preferred_date}"
+
+                subject = "Good News! Your Bubble Soccer Slot Is Available"
+
+                email_body = (
+                    f"Hi {inquiry.name},\n\n"
+                    f"Great news! We found an available slot for your booking.\n"
+                    f"Please complete your reservation using the link below:\n\n"
+                    f"{booking_url}"
+                )
+
                 inquiry.is_available = True
                 inquiry.save()
 
-                slot = available_slots[0]
-                subject = f"Good News! Your {slot['time']} slot is available"
-
-                email_body = f"""
-Hi {inquiry.name},
-
-Great news! We have confirmed that the {slot['time']} slot on {inquiry.preferred_date} is available in {inquiry.location}.
-
-To secure this booking, please click the link below to pay your £49 deposit:
-{slot['booking_url']}
-
-If you have any further questions, simply reply to this email.
-
-Thanks,
-Spartacus Bubble Soccer Team
-                """
-
             else:
-                # If no slot is available
-                subject = "Update regarding your Bubble Soccer Inquiry"
+                subject = "Checking Venue Availability"
 
-                email_body = f"""
-Hi {inquiry.name},
+                email_body = (
+                    f"Hi {inquiry.name},\n\n"
+                    f"We are currently checking alternative slots for your requested time."
+                    f" Our team will update you shortly."
+                )
 
-Thank you for your inquiry. We are currently checking the availability for your requested time ({inquiry.preferred_time}) in {inquiry.location} on {inquiry.preferred_date}.
-
-Our team will get back to you within a a few hours with a confirmation or alternative slots.
-
-Thanks for your patience!
-Spartacus Bubble Soccer Team
-                """
-
-            # 6. Send email using Django email settings
+            # Send response email to the customer
             send_mail(
                 subject,
                 email_body,
                 settings.EMAIL_HOST_USER,
-                [inquiry.email],
-                fail_silently=False
+                [inquiry.email]
             )
 
             return JsonResponse(
-                {
-                    "status": "success",
-                    "available": inquiry.is_available,
-                    "message": "Inquiry processed and email sent successfully.",
-                },
-                status=201,
+                {"status": "success", "message": "Website inquiry processed successfully."},
+                status=201
             )
 
         except Exception as e:
@@ -114,7 +90,73 @@ Spartacus Bubble Soccer Team
                 status=400
             )
 
-    return JsonResponse(
-        {"status": "error", "message": "Only POST requests are allowed"},
-        status=405
-    )
+
+@csrf_exempt
+def voice_booking_handler(request):
+    """
+    Handles booking requests coming from the Voice AI system (Vapi).
+
+    Unlike the website inquiry flow, this endpoint:
+    1. Checks availability
+    2. Directly commits the booking to Rezgo
+    3. Sends a confirmation email to the customer
+    """
+
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+
+            city_name = data.get("location")
+
+            # Convert city name into Rezgo Item UID using database mapping
+            try:
+                loc = RezgoLocation.objects.get(city_name=city_name)
+                uid = loc.rezgo_uid
+            except:
+                # Fallback: treat city name as UID
+                uid = city_name
+
+            # Check slot availability
+            slot = check_rezgo_availability(
+                uid,
+                data['preferred_date'],
+                data['preferred_time']
+            )
+
+            if slot:
+                # Directly create booking in Rezgo
+                commit_rezgo_booking(data, uid)
+
+                subject = "Booking Confirmed via Voice Assistant"
+
+                booking_url = f"https://{settings.REZGO_DOMAIN}.rezgo.com/book?item={uid}&date={data['preferred_date']}"
+
+                email_body = (
+                    f"Hi {data['name']},\n\n"
+                    f"Your booking has been successfully created through our AI Voice Assistant.\n\n"
+                    f"Please complete the deposit payment using the link below:\n"
+                    f"{booking_url}"
+                )
+
+                # Send confirmation email
+                send_mail(
+                    subject,
+                    email_body,
+                    settings.EMAIL_HOST_USER,
+                    [data['email']]
+                )
+
+                return JsonResponse(
+                    {"status": "success", "message": "Booking successfully created in Rezgo."}
+                )
+
+            else:
+                return JsonResponse(
+                    {"status": "failed", "message": "Requested slot is fully booked."}
+                )
+
+        except Exception as e:
+            return JsonResponse(
+                {"status": "error", "message": str(e)},
+                status=400
+            )
