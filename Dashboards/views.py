@@ -7,6 +7,11 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import BookingInteraction
 from datetime import datetime
+from rest_framework import viewsets, views
+from rest_framework.response import Response
+from .serializers import *
+from bookinge.models import BookingInquiry, RezgoLocation
+from support.models import BusinessFAQ
 
 class RezgoWebhookReceiver(APIView):
     def post(self, request):
@@ -49,4 +54,24 @@ class RezgoWebhookReceiver(APIView):
         except Exception as e:
             print(f"Error: {str(e)}")
             return Response({"error": "Failed to process data"}, status=status.HTTP_400_BAD_REQUEST)
-        
+    
+class DashboardStatsView(views.APIView):
+    def get(self, request):
+        data = {
+            "total_inquiries": BookingInquiry.objects.count(),
+            "confirmed_bookings": BookingInquiry.objects.filter(is_available=True).count(),
+            "total_locations": RezgoLocation.objects.count(),
+            "total_faqs": BusinessFAQ.objects.count(),
+        }
+        return Response(data)
+    
+# ২. FAQ Manager (Add/Edit/Delete questions)
+class FAQViewSet(viewsets.ModelViewSet):
+    queryset = BusinessFAQ.objects.all()
+    serializer_class = FAQSerializer
+    
+
+# ৩. Location Manager (Manage City names and Rezgo UIDs)
+class LocationMappingViewSet(viewsets.ModelViewSet):
+    queryset = RezgoLocation.objects.all()
+    serializer_class = LocationMappingSerializer

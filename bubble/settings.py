@@ -57,7 +57,8 @@ INSTALLED_APPS = [
     'users',
     'Dashboards',
     'bookinge',
-    'support'
+    'support',
+    'Test'
 ]
 
 MIDDLEWARE = [

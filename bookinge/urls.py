@@ -9,4 +9,4 @@ urlpatterns = [
 ]
 
 
-print("Hello B")
+
