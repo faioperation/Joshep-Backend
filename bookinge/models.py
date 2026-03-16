@@ -1,7 +1,8 @@
 from django.db import models
-from django.db.models.signals import post_save
-from django.dispatch import receiver
+from django.db.models.signals import post_save # এটি যোগ করুন
+from django.dispatch import receiver 
 from .utils import sync_to_airtable
+
 
 class BookingInquiry(models.Model):
 
@@ -83,5 +84,6 @@ class RezgoLocation(models.Model):
 
 @receiver(post_save, sender=BookingInquiry)
 def auto_sync_airtable(sender, instance, created, **kwargs):
-    if created: # শুধুমাত্র নতুন ইনকোয়ারি তৈরি হলেই এয়ারটেবলে যাবে
+    if created:
+        print("🚀 Signal Triggered: New inquiry found!") # এই লাইনটি যোগ করুন
         sync_to_airtable(instance)
