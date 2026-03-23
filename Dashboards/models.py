@@ -64,3 +64,6 @@ class BookingInteraction(models.Model):
 
     def __str__(self):
         return f"{self.interaction_id} - {self.name}"
+    
+    
+    

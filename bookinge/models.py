@@ -84,6 +84,49 @@ class RezgoLocation(models.Model):
 
 @receiver(post_save, sender=BookingInquiry)
 def auto_sync_airtable(sender, instance, created, **kwargs):
+    
     if created:
         print("🚀 Signal Triggered: New inquiry found!") # এই লাইনটি যোগ করুন
         sync_to_airtable(instance)
+        
+
+# Venues 
+class Venue(models.Model):
+    city = models.CharField(max_length=100)
+    category = models.CharField(max_length=50) # Stag, Hen, Kids, etc.
+    venue_name = models.CharField(max_length=255)
+    contact_email = models.EmailField()
+    contact_phone = models.CharField(max_length=20)
+    priority = models.IntegerField(default=1) 
+
+    def __str__(self):
+        return f"{self.venue_name} ({self.city})"
+    
+
+# Confirmed Bookings
+class ConfirmedBooking(models.Model):
+    booking_id = models.CharField(max_length=50, unique=True) # Rezgo ID
+    name = models.CharField(max_length=255)
+    phone = models.CharField(max_length=20)
+    email = models.EmailField()
+    city = models.CharField(max_length=100)
+    date = models.DateField()
+    time = models.CharField(max_length=50)
+    package = models.CharField(max_length=100)
+    group_size = models.CharField(max_length=50)
+    status = models.CharField(max_length=50, default="Confirmed")
+    
+    linked_venue = models.ForeignKey(Venue, on_delete=models.SET_NULL, null=True, blank=True)
+
+    def __str__(self):
+        return f"Booking {self.booking_id} - {self.name}"
+    
+
+# Shift Connecteam
+
+class Shift(models.Model):
+    booking = models.OneToOneField(ConfirmedBooking, on_delete=models.CASCADE)
+    staff_required = models.IntegerField(default=1)
+    status = models.CharField(max_length=50, default="Unassigned")
+    connecteam_id = models.CharField(max_length=100, null=True, blank=True)
+    is_sent_to_connecteam = models.BooleanField(default=False)

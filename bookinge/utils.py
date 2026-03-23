@@ -65,7 +65,30 @@ def commit_rezgo_booking(data, item_uid):
         return None
 
 # ৩. এয়ারটেবল সিঙ্ক করার ফাংশন
-def sync_to_airtable(inquiry_obj):
+def sync_to_airtable_generic(table_name, fields):
+    """
+    যেকোনো এয়ারটেবল টেবিলে ডাটা পাঠানোর ডাইনামিক ফাংশন।
+    """
+    if not settings.AIRTABLE_API_KEY or not settings.AIRTABLE_BASE_ID:
+        print("❌ Airtable Keys Missing")
+        return
+
+    url = f"https://api.airtable.com/v0/{settings.AIRTABLE_BASE_ID}/{table_name}"
+    headers = {
+        "Authorization": f"Bearer {settings.AIRTABLE_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {"fields": fields}
+    
+    try:
+        response = requests.post(url, json=payload, headers=headers)
+        return response.status_code in [200, 201]
+    except Exception as e:
+        print(f"Airtable Sync Error: {e}")
+        return False
+    
+    
     if not settings.AIRTABLE_API_KEY or not settings.AIRTABLE_BASE_ID:
         print("❌ Airtable Error: API Key or Base ID missing in .env")
         return
