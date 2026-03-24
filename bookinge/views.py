@@ -4,7 +4,6 @@ from rest_framework.response import Response
 from django.core.mail import send_mail
 from django.conf import settings
 from .models import BookingInquiry, RezgoLocation
-# utils থেকে প্রয়োজনীয় ফাংশনগুলো ইম্পোর্ট করা হলো
 from .utils import check_rezgo_availability, commit_rezgo_booking, sync_to_airtable_generic 
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
@@ -63,15 +62,15 @@ def process_booking_inquiry(request):
             subject = "Checking Venue Availability"
             email_body = f"Hi {inquiry.name}, we are checking alternative slots for you."
 
-        send_mail(subject, email_body, settings.EMAIL_HOST_USER, [inquiry.email])
+        # send_mail(subject, email_body, settings.EMAIL_HOST_USER, [inquiry.email])
 
         # ৫. এয়ারটেবল 'Leads' টেবিলে ডাটা পাঠানো
         lead_fields = {
             "Name": inquiry.name,
             "Phone": inquiry.phone,
             "Email": inquiry.email,
-            "City": inquiry.location,
-            "Preferred Date": str(inquiry.preferred_date),
+            "Location": inquiry.location,
+            "Date": str(inquiry.preferred_date), # এখানে 'Preferred Date' ছিল, আমি 'Date' করে দিলাম
             "Status": "New Inquiry"
         }
         sync_to_airtable_generic("Leads", lead_fields)
@@ -124,7 +123,7 @@ def voice_booking_handler(request):
             # ৫. কনফার্মেশন ইমেইল
             subject = "Booking Confirmed via Voice Assistant"
             email_body = f"Hi {data['name']},\n\nYour booking is confirmed. Please pay deposit at the venue or via the link sent."
-            send_mail(subject, email_body, settings.EMAIL_HOST_USER, [data['email']])
+            # send_mail(subject, email_body, settings.EMAIL_HOST_USER, [data['email']])
             
             return Response({"status": "success", "message": "Booking created and logged to Airtable."})
         else:

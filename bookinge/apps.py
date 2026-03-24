@@ -5,5 +5,4 @@ class BookingeConfig(AppConfig):
     name = 'bookinge'
 
     def ready(self):
-        # এটি জ্যাঙ্গোকে বলে দেয় সার্ভার চালু হওয়ার সময় সিগন্যাল লোড করতে
-        import bookinge.models
+        import bookinge.models # এটি নিশ্চিত করবে যে সিগন্যাল কাজ করবে

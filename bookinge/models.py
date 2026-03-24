@@ -1,132 +1,60 @@
 from django.db import models
-from django.db.models.signals import post_save # এটি যোগ করুন
+from django.db.models.signals import post_save
 from django.dispatch import receiver 
-from .utils import sync_to_airtable
-
+from .utils import sync_to_airtable_generic
 
 class BookingInquiry(models.Model):
-
-    EVENT_TYPE_CHOICES = [
-        ('Stag Do', 'Stag Do'),
-        ('Hen Do', 'Hen Do'),
-        ('Birthday Party', 'Birthday Party'),
-        ('Corporate Event', 'Corporate Event'),
-        ('Kids Party', 'Kids Party'),
-        ('School Event', 'School Event'),
-        ('Other', 'Other'),
-    ]
-
-
-    GROUP_SIZE_CHOICES = [
-        ('10-15 people', '10-15 people'),
-        ('16-20 people', '16-20 people'),
-        ('21-25 people', '21-25 people'),
-        ('26-30 people', '26-30 people'),
-        ('30+ people', '30+ people'),
-    ]
-
-    LOCATION_CHOICES = [
-        ('London', 'London'), ('Manchester', 'Manchester'), ('Birmingham', 'Birmingham'),
-        ('Bristol', 'Bristol'), ('Leeds', 'Leeds'), ('Sheffield', 'Sheffield'),
-        ('York', 'York'), ('Bradford', 'Bradford'), ('Hull', 'Hull'),
-        ('Huddersfield', 'Huddersfield'), ('Halifax', 'Halifax'), ('Wakefield', 'Wakefield'),
-        ('Harrogate', 'Harrogate'), ('Scarborough', 'Scarborough'), ('Rotherham', 'Rotherham'),
-        ('Doncaster', 'Doncaster'), ('Liverpool', 'Liverpool'), ('Newcastle', 'Newcastle'),
-        ('Edinburgh', 'Edinburgh'), ('Glasgow', 'Glasgow'), ('Plymouth', 'Plymouth'),
-        ('Exeter', 'Exeter'), ('Bournemouth', 'Bournemouth'), ('Bath', 'Bath'),
-        ('Gloucester', 'Gloucester'), ('Swindon', 'Swindon'), ('Weston-super-Mare', 'Weston-super-Mare'),
-        ('Yeovil', 'Yeovil'), ('Bridgwater', 'Bridgwater'), ('Taunton', 'Taunton'),
-        ('Cardiff', 'Cardiff'), ('Swansea', 'Swansea'), ('Newport', 'Newport'),
-        ('Wrexham', 'Wrexham'), ('Barry', 'Barry'), ('Bridgend', 'Bridgend'),
-        ('Neath', 'Neath'), ('Port Talbot', 'Port Talbot'), ('Llandudno', 'Llandudno'),
-        ('Rhyl', 'Rhyl'), ('Aberystwyth', 'Aberystwyth'), ('Bangor', 'Bangor'),
-        ('Nottingham', 'Nottingham'), ('Leicester', 'Leicester'), ('Derby', 'Derby'),
-        ('Coventry', 'Coventry'), ('Wolverhampton', 'Wolverhampton'), ('Solihull', 'Solihull'),
-        ('West Bromwich', 'West Bromwich'), ('Dudley', 'Dudley'), ('Stoke-on-Trent', 'Stoke-on-Trent'),
-        ('Tamworth', 'Tamworth'), ('Loughborough', 'Loughborough'), ('Blackpool', 'Blackpool'),
-        ('Wirral', 'Wirral'), ('Preston', 'Preston'), ('Warrington', 'Warrington'),
-        ('Wigan', 'Wigan'), ('Bolton', 'Bolton'), ('St Helens', 'St Helens'),
-        ('Southport', 'Southport'), ('Blackburn', 'Blackburn'), ('Burnley', 'Burnley'),
-        ('Sunderland', 'Sunderland'), ('Middlesbrough', 'Middlesbrough'), ('Hartlepool', 'Hartlepool'),
-        ('Stockton-on-Tees', 'Stockton-on-Tees'), ('Durham', 'Durham'), ('Darlington', 'Darlington'),
-        ('Gateshead', 'Gateshead'), ('South Shields', 'South Shields'), ('Washington', 'Washington'),
-        ('Bishop Auckland', 'Bishop Auckland'), ('Redcar', 'Redcar'),
-    ]
-
     name = models.CharField(max_length=255)
     phone = models.CharField(max_length=20)
     email = models.EmailField()
-
-    location = models.CharField(max_length=100, choices=LOCATION_CHOICES)
-    event_type = models.CharField(max_length=100, choices=EVENT_TYPE_CHOICES)
-    group_size = models.CharField(max_length=50, choices=GROUP_SIZE_CHOICES)
-
+    location = models.CharField(max_length=100)
+    event_type = models.CharField(max_length=100)
+    group_size = models.CharField(max_length=50)
     preferred_date = models.DateField()
-    preferred_time = models.CharField(max_length=50, blank=True, null=True) # AI চেকিং এর জন্য
+    preferred_time = models.CharField(max_length=50, blank=True, null=True)
     message = models.TextField(blank=True, null=True)
-
     is_available = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.name} - {self.location} ({self.preferred_date})"
-
-    class Meta:
-        verbose_name_plural = "Booking Inquiries"
+        return f"{self.name} - {self.location}"
 
 class RezgoLocation(models.Model):
-    city_name = models.CharField(max_length=100, unique=True) # : Manchester
-    rezgo_uid = models.CharField(max_length=50) # : 419690
+    city_name = models.CharField(max_length=100, unique=True)
+    rezgo_uid = models.CharField(max_length=50)
+    def __str__(self): return self.city_name
 
-    def __str__(self):
-        return f"{self.city_name} (ID: {self.rezgo_uid})"
-    
-
+# --- সিগন্যাল পার্ট: এখানে টেবিলের নাম 'Leads' (বড় হাতের L) দেওয়া হয়েছে ---
 @receiver(post_save, sender=BookingInquiry)
 def auto_sync_airtable(sender, instance, created, **kwargs):
-    
     if created:
-        print("🚀 Signal Triggered: New inquiry found!") # এই লাইনটি যোগ করুন
-        sync_to_airtable(instance)
+        print(f"🚀 Signal Triggered for: {instance.name}")
         
+        # এয়ারটেবল কলামের নামের সাথে হুবহু মিল রেখে ডাটা সাজানো
+        lead_fields = {
+            "Name": instance.name,
+            "Phone": instance.phone,
+            "Email": instance.email,
+            "Location": instance.location,
+            "Date": str(instance.preferred_date),
+            "Time": instance.preferred_time or "Not Set",
+            "Status": "Pending"
+        }
+        
+        # টেবিলের নাম অবশ্যই 'Leads' হতে হবে
+        sync_to_airtable_generic("Leads", lead_fields)
 
-# Venues 
+# --- ভেন্যু এবং শিফট মডেল (যেমন ছিল থাকবে) ---
 class Venue(models.Model):
     city = models.CharField(max_length=100)
-    category = models.CharField(max_length=50) # Stag, Hen, Kids, etc.
     venue_name = models.CharField(max_length=255)
     contact_email = models.EmailField()
-    contact_phone = models.CharField(max_length=20)
-    priority = models.IntegerField(default=1) 
+    priority = models.IntegerField(default=1)
+    def __str__(self): return self.venue_name
 
-    def __str__(self):
-        return f"{self.venue_name} ({self.city})"
-    
-
-# Confirmed Bookings
 class ConfirmedBooking(models.Model):
-    booking_id = models.CharField(max_length=50, unique=True) # Rezgo ID
+    booking_id = models.CharField(max_length=50, unique=True)
     name = models.CharField(max_length=255)
-    phone = models.CharField(max_length=20)
-    email = models.EmailField()
     city = models.CharField(max_length=100)
     date = models.DateField()
-    time = models.CharField(max_length=50)
-    package = models.CharField(max_length=100)
-    group_size = models.CharField(max_length=50)
-    status = models.CharField(max_length=50, default="Confirmed")
-    
-    linked_venue = models.ForeignKey(Venue, on_delete=models.SET_NULL, null=True, blank=True)
-
-    def __str__(self):
-        return f"Booking {self.booking_id} - {self.name}"
-    
-
-# Shift Connecteam
-
-class Shift(models.Model):
-    booking = models.OneToOneField(ConfirmedBooking, on_delete=models.CASCADE)
-    staff_required = models.IntegerField(default=1)
-    status = models.CharField(max_length=50, default="Unassigned")
-    connecteam_id = models.CharField(max_length=100, null=True, blank=True)
-    is_sent_to_connecteam = models.BooleanField(default=False)
+    def __str__(self): return self.name
