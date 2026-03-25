@@ -186,3 +186,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # AirTable
 AIRTABLE_API_KEY = os.getenv('AIRTABLE_API_KEY')
 AIRTABLE_BASE_ID = os.getenv('AIRTABLE_BASE_ID')
+
+# OPEN AI 
+OPENAI_API_KEY=os.getenv('OPENAI_API_KEY')
+
