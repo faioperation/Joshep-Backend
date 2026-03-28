@@ -62,7 +62,7 @@ def process_booking_inquiry(request):
             subject = "Checking Venue Availability"
             email_body = f"Hi {inquiry.name}, we are checking alternative slots for you."
 
-        # send_mail(subject, email_body, settings.EMAIL_HOST_USER, [inquiry.email])
+            send_mail(subject, email_body, settings.EMAIL_HOST_USER, [inquiry.email])
 
         # ৫. এয়ারটেবল 'Leads' টেবিলে ডাটা পাঠানো
         lead_fields = {
@@ -123,7 +123,7 @@ def voice_booking_handler(request):
             # ৫. কনফার্মেশন ইমেইল
             subject = "Booking Confirmed via Voice Assistant"
             email_body = f"Hi {data['name']},\n\nYour booking is confirmed. Please pay deposit at the venue or via the link sent."
-            # send_mail(subject, email_body, settings.EMAIL_HOST_USER, [data['email']])
+            send_mail(subject, email_body, settings.EMAIL_HOST_USER, [data['email']])
             
             return Response({"status": "success", "message": "Booking created and logged to Airtable."})
         else:
@@ -131,3 +131,6 @@ def voice_booking_handler(request):
 
     except Exception as e:
         return Response({"status": "error", "message": str(e)}, status=400)
+    
+    
+    

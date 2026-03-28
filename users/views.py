@@ -11,7 +11,7 @@ from .serializers import FAQSerializers,ResetPasswordSerializer
 from django.contrib.auth import logout
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import AllowAny
-
+from django.core.cache import cache
 
 # from django.utils.decorators import method_decorator
 # from django.views.decorators.csrf import csrf_exempt

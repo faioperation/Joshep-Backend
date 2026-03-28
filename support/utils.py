@@ -1,5 +1,7 @@
 from .models import BusinessFAQ
 from openai import OpenAI
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail,From
 from django.conf import settings
 
 def get_answer_from_faq(user_query):
@@ -57,3 +59,45 @@ def generate_ai_reply(user_query):
         print(f"OpenAI Error: {e}")
         return "Thank you for reaching out! We have received your query and a human team member will get back to you shortly."
     
+
+
+def send_ai_reply_via_sendgrid(to_email, subject, content):
+    """
+    আপনার .env থেকে ডাটা নিয়ে প্রফেশনাল ইমেইল পাঠানোর ফাংশন।
+    """
+    # এখান থেকে .env এর ডাটা লোড হচ্ছে
+    from_email = From(settings.SENDGRID_FROM_EMAIL, settings.SENDGRID_FROM_NAME)
+    
+    message = Mail(
+        from_email=from_email,
+        to_emails=to_email,
+        subject=subject,
+        plain_text_content=content
+    )
+    try:
+        sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
+        response = sg.send(message)
+        print(f"✅ Email Sent! Status: {response.status_code}")
+        return True
+    except Exception as e:
+        print(f"❌ SendGrid Error: {e}")
+        return False
+    
+
+
+def send_professional_email(to_email, subject, content):
+    """সেন্ডগ্রিড এপিআই ব্যবহার করে মেইল পাঠানোর ফাংশন"""
+    message = Mail(
+        from_email='your-verified-email@gmail.com', # আপনার ভেরিফাইড মেইল
+        to_emails=to_email,
+        subject=subject,
+        plain_text_content=content
+    )
+    try:
+        sg = SendGridAPIClient(os.getenv('SENDGRID_API_KEY'))
+        response = sg.send(message)
+        print(f"Email Sent! Status Code: {response.status_code}")
+        return True
+    except Exception as e:
+        print(f"SendGrid Error: {e}")
+        return False

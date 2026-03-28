@@ -1,17 +1,16 @@
 import json
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from django.core.mail import send_mail
 from django.conf import settings
 from .models import AIEmailLog
-from .utils import generate_ai_reply  # নিশ্চিত করুন utils.py তে এই ফাংশনটি আছে
+from .utils import generate_ai_reply, send_ai_reply_via_sendgrid # নতুন ফাংশন ইম্পোর্ট করা হয়েছে
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 
 @swagger_auto_schema(
     method='post',
-    operation_summary="AI-Powered Email Support Webhook",
-    operation_description="Receives customer email replies, processes them using OpenAI GPT-4 and Knowledge Base, and sends an automated reply.",
+    operation_summary="AI-Powered Email Support via SendGrid",
+    operation_description="Receives customer email replies, processes them using OpenAI, and sends an automated reply through SendGrid API.",
     request_body=openapi.Schema(
         type=openapi.TYPE_OBJECT,
         required=['from', 'text'],
@@ -25,7 +24,7 @@ from drf_yasg import openapi
 @api_view(['POST'])
 def email_reply_webhook(request):
     """
-    ইউজার ইমেইল রিপ্লাই দিলে এই ভিউটি OpenAI ব্যবহার করে বুদ্ধিমান উত্তর পাঠাবে।
+    ইউজার ইমেইল রিপ্লাই দিলে এই ভিউটি OpenAI এবং SendGrid ব্যবহার করে উত্তর পাঠাবে।
     """
     try:
         # ১. ইনকামিং ডাটা রিসিভ করা (DRF এর মাধ্যমে সরাসরি request.data পাওয়া যায়)
@@ -40,27 +39,33 @@ def email_reply_webhook(request):
         # ২. এআই ইঞ্জিন কল করা (এটি ডাটাবেজের FAQ পড়বে এবং OpenAI দিয়ে উত্তর লিখবে)
         ai_generated_answer = generate_ai_reply(user_message)
 
-        # ৩. কাস্টমারকে চমৎকার এআই রিপ্লাই মেইল পাঠানো
-        send_mail(
+        # ৩. সেন্ডগ্রিড এপিআই ব্যবহার করে কাস্টমারকে উত্তর পাঠানো
+        # আমরা এখন settings.py এর SMTP ব্যবহার না করে সরাসরি API কল করছি
+        email_sent = send_ai_reply_via_sendgrid(
+            to_email=sender_email,
             subject=f"Re: {subject}",
-            message=ai_generated_answer,
-            from_email=settings.EMAIL_HOST_USER,
-            recipient_list=[sender_email],
-            fail_silently=False,
+            content=ai_generated_answer
         )
 
-        # ৪. রেকর্ডের জন্য ডাটাবেজে সেভ করা (AIEmailLog)
+        # ৪. রেকর্ডের জন্য ডাটাবেজে সেভ করা (লগ রাখা)
         AIEmailLog.objects.create(
             user_email=sender_email,
             user_question=user_message,
             ai_response=ai_generated_answer
         )
 
-        return Response({
-            "status": "success",
-            "message": "AI reply sent successfully",
-            "ai_response": ai_generated_answer
-        }, status=200)
+        if email_sent:
+            return Response({
+                "status": "success",
+                "message": "AI reply generated and sent via SendGrid.",
+                "ai_answer": ai_generated_answer
+            }, status=200)
+        else:
+            return Response({
+                "status": "partial_success",
+                "message": "AI generated answer, but SendGrid failed to send email. Check logs.",
+                "ai_answer": ai_generated_answer
+            }, status=500)
 
     except Exception as e:
         return Response({"status": "error", "message": str(e)}, status=400)

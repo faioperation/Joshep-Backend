@@ -190,3 +190,10 @@ AIRTABLE_BASE_ID = os.getenv('AIRTABLE_BASE_ID')
 # OPEN AI 
 OPENAI_API_KEY=os.getenv('OPENAI_API_KEY')
 
+
+#---------------------  sendGrid--------------------
+
+SENDGRID_API_KEY=os.getenv('SENDGRID_API_KEY')
+SENDGRID_FROM_EMAIL=os.getenv('SENDGRID_FROM_EMAIL')
+SENDGRID_FROM_NAME=os.getenv('SENDGRID_FROM_NAME')
+
