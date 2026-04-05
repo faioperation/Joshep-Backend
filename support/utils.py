@@ -77,10 +77,10 @@ def send_ai_reply_via_sendgrid(to_email, subject, content):
     try:
         sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
         response = sg.send(message)
-        print(f"✅ Email Sent! Status: {response.status_code}")
+        print(f"Email Sent! Status: {response.status_code}")
         return True
     except Exception as e:
-        print(f"❌ SendGrid Error: {e}")
+        print(f" SendGrid Error: {e}")
         return False
     
 

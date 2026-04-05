@@ -9,6 +9,19 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv()
 
+
+def env_bool(name, default=False):
+    value = os.getenv(name)
+    if value is None:
+        return default
+
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "t", "yes", "y", "on"}:
+        return True
+    if normalized in {"0", "false", "f", "no", "n", "off", "release", ""}:
+        return False
+    return default
+
 REZGO_CID = os.getenv('REZGO_CID')
 REZGO_API_KEY = os.getenv('REZGO_API_KEY')
 REZGO_DOMAIN = os.getenv('REZGO_DOMAIN')
@@ -19,7 +32,7 @@ REZGO_DOMAIN = os.getenv('REZGO_DOMAIN')
 # ==========================
 
 SECRET_KEY = config('SECRET_KEY')
-DEBUG = config('DEBUG', default=False, cast=bool)
+DEBUG = env_bool('DEBUG', default=False)
 
 ALLOWED_HOSTS = config(
     'ALLOWED_HOSTS',
@@ -33,13 +46,13 @@ AUTH_USER_MODEL = 'users.Users'
 # SSL CONFIGURATION
 # ==========================
 
-SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', cast=bool, default=True)
-SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', cast=bool, default=True)
-CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', cast=bool, default=True)
+SECURE_SSL_REDIRECT = env_bool('SECURE_SSL_REDIRECT', default=True)
+SESSION_COOKIE_SECURE = env_bool('SESSION_COOKIE_SECURE', default=True)
+CSRF_COOKIE_SECURE = env_bool('CSRF_COOKIE_SECURE', default=True)
 
 SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', cast=int, default=31536000)
-SECURE_HSTS_INCLUDE_SUBDOMAINS = config('SECURE_HSTS_INCLUDE_SUBDOMAINS', cast=bool, default=True)
-SECURE_HSTS_PRELOAD = config('SECURE_HSTS_PRELOAD', cast=bool, default=True)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool('SECURE_HSTS_INCLUDE_SUBDOMAINS', default=True)
+SECURE_HSTS_PRELOAD = env_bool('SECURE_HSTS_PRELOAD', default=True)
 
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True

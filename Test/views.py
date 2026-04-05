@@ -30,13 +30,13 @@ def whatsapp_webhook(request):
                 number = message_obj['from']
                 text = message_obj.get('text', {}).get('body', 'No Text')
                 
-                print(f"✅ MESSAGE DETECTED -> {{number: {number}, message: {text}}}")
+                print(f" MESSAGE DETECTED -> {{number: {number}, message: {text}}}")
             
             elif 'statuses' in value:
                 status = value['statuses'][0]['status']
-                print(f"ℹ️ STATUS UPDATE -> Message is {status}")
+                print(f"ℹ STATUS UPDATE -> Message is {status}")
 
         except Exception as e:
-            print(f"❌ Error while parsing: {e}")
+            print(f" Error while parsing: {e}")
             
         return HttpResponse('EVENT_RECEIVED', status=200)
