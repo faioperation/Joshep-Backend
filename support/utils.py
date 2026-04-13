@@ -4,6 +4,7 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail,From
 from django.conf import settings
 
+
 def get_answer_from_faq(user_query):
     """ডাটাবেজ থেকে উত্তর খুঁজে বের করার লজিক"""
     faqs = BusinessFAQ.objects.all()

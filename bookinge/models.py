@@ -20,9 +20,14 @@ class BookingInquiry(models.Model):
         return f"{self.name} - {self.location}"
 
 class RezgoLocation(models.Model):
-    city_name = models.CharField(max_length=100, unique=True)
-    rezgo_uid = models.CharField(max_length=50)
-    def __str__(self): return self.city_name
+    # এখানে unique=True থাকবে না কারণ লিভারপুল বা ম্যানচেস্টার নাম রিপিট হতে পারে
+    city_name = models.CharField(max_length=255) 
+    
+    # এটি অবশ্যই ইউনিক হবে কারণ রেজগো আইডি কখনো এক হয় না
+    rezgo_uid = models.CharField(max_length=100, unique=True) 
+
+    def __str__(self):
+        return f"{self.city_name} (ID: {self.rezgo_uid})"
 
 # --- সিগন্যাল পার্ট: এখানে টেবিলের নাম 'Leads' (বড় হাতের L) দেওয়া হয়েছে ---
 @receiver(post_save, sender=BookingInquiry)
@@ -46,15 +51,30 @@ def auto_sync_airtable(sender, instance, created, **kwargs):
 
 # --- ভেন্যু এবং শিফট মডেল (যেমন ছিল থাকবে) ---
 class Venue(models.Model):
-    city = models.CharField(max_length=100)
-    venue_name = models.CharField(max_length=255)
-    contact_email = models.EmailField()
-    priority = models.IntegerField(default=1)
-    def __str__(self): return self.venue_name
+    city = models.CharField(max_length=100,null=True)
+    category = models.CharField(max_length=50,null=True) # Stag, Hen, Kids, Corporate
+    venue_name = models.CharField(max_length=255,null=True)
+    contact_email = models.EmailField(null=True,blank=True)
+    contact_phone = models.CharField(max_length=20 ,null=True)
+    priority = models.IntegerField(default=1,null=True) # ১ মানে সবচেয়ে ভালো ভেন্যু
+    notes = models.TextField(blank=True, null=True)
 
+    def __str__(self):
+        return f"{self.venue_name} ({self.city})"
+
+#  Before  Model Cretinge kora  
 class ConfirmedBooking(models.Model):
-    booking_id = models.CharField(max_length=50, unique=True)
+    booking_id = models.CharField(max_length=50, unique=True) # রেজগো আইডি
     name = models.CharField(max_length=255)
+    email = models.EmailField(null=True,blank=True)
     city = models.CharField(max_length=100)
     date = models.DateField()
-    def __str__(self): return self.name
+    time = models.CharField(max_length=50)
+    package = models.CharField(max_length=100,null=True,blank=True)
+    status = models.CharField(max_length=50, default="Confirmed",)
+    
+    def __str__(self):
+        return f"{self.booking_id} - {self.name}"
+
+
+
