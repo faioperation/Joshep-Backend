@@ -10,7 +10,6 @@ urlpatterns = [
     # এটি দিলে আপনি পাবেন: GET/POST/PUT/DELETE /api/dashboards/faqs/
     path('', include(router.urls)), 
     
-    # স্ট্যাটাস এবং ওয়েব হুক
     path('stats/', DashboardStatsView.as_view(), name='dashboard-stats'),
     path('webhook/rezgo/', RezgoWebhookReceiver.as_view(), name='rezgo-webhook'),
 ]

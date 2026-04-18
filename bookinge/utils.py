@@ -2,7 +2,6 @@ import requests
 import json
 import time
 from django.conf import settings
-# SendGrid এর জন্য এই ৩টি লাইন একদম মাস্ট
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, From, To, Content
 
@@ -13,11 +12,13 @@ def check_rezgo_availability(location_query, date_string, user_name="Unknown", p
         'i': 'search',
         'q': location_query 
     }
+    print(location_query)
+    print("this is params", params)
 
     try:
         response = requests.get("https://api.rezgo.com/json", params=params)
         data = response.json()
-        
+        print("this is api response",data)
         print("\n" + "="*50)
         print(f" REQUEST FROM USER: {user_name}")
         print(f" SEARCHING FOR LOCATION: {location_query}")
@@ -56,9 +57,7 @@ def check_rezgo_availability(location_query, date_string, user_name="Unknown", p
         return None
         
 def commit_rezgo_booking(data, item_uid):
-    """
-    Directly creates a booking in Rezgo via XML API.
-    """
+
     URL = "https://api.rezgo.com/xml"
     ref_id = f"VOICE-{int(time.time())}"
 
@@ -91,9 +90,7 @@ def commit_rezgo_booking(data, item_uid):
         return None
 
 def sync_to_airtable_generic(table_name, fields):
-    """
-    Universal function to sync data to any Airtable table.
-    """
+
     if not settings.AIRTABLE_API_KEY or not settings.AIRTABLE_BASE_ID:
         return False
 
@@ -114,7 +111,6 @@ def sync_to_airtable_generic(table_name, fields):
         print("❌ Airtable Keys Missing")
         return False
 
-    # এখানে URL একদম নিখুঁত করা হয়েছে
     url = f"https://api.airtable.com/v0/{settings.AIRTABLE_BASE_ID}/{table_name}"
     headers = {
         "Authorization": f"Bearer {settings.AIRTABLE_API_KEY}",
@@ -137,15 +133,12 @@ def sync_to_airtable_generic(table_name, fields):
         return False
 
 def send_ai_reply_via_sendgrid(to_email, subject, content):
-    """
-    Sends email using SendGrid API Client
-    """
-    # From and To objects
+    
     from_email = From(settings.SENDGRID_FROM_EMAIL, settings.SENDGRID_FROM_NAME)
     to_email_obj = To(to_email)
     content_obj = Content("text/plain", content)
     
-    # Create Mail object
+    
     message = Mail(from_email, to_email_obj, subject, content_obj)
     
     try:
@@ -214,7 +207,7 @@ def auto_sync_all_rezgo_locations():
     params = {
         'transcode': settings.REZGO_CID,
         'key': settings.REZGO_API_KEY,
-        'i': 'search', # সব আইটেম খোঁজার জন্য
+        'i': 'search', 
     }
 
     try:
@@ -229,8 +222,8 @@ def auto_sync_all_rezgo_locations():
 
             count = 0
             for item in items:
-                name = item.get('item') # যেমন: The Double Header (Liverpool)
-                uid = item.get('uid')   # যেমন: 419690
+                name = item.get('item') 
+                uid = item.get('uid')   
                 
                
                 RezgoLocation.objects.update_or_create(

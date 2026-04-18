@@ -1,7 +1,6 @@
 from django.db import models
 
 class BusinessFAQ(models.Model):
-    """Write a Joseph Writiange """
     question = models.CharField(max_length=255)
     answer = models.TextField()
 
@@ -9,7 +8,6 @@ class BusinessFAQ(models.Model):
         return self.question
 
 class AIEmailLog(models.Model):
-    """এআই কাকে কী রিপ্লাই দিলো তার রেকর্ড রাখার জন্য"""
     user_email = models.EmailField()
     user_question = models.TextField()
     ai_response = models.TextField()
