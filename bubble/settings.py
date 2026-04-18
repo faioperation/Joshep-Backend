@@ -72,7 +72,6 @@ INSTALLED_APPS = [
     'Dashboards',
     'bookinge',
     'support',
-    'Test',
 
 ]
 
