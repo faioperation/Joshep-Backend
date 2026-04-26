@@ -5,4 +5,4 @@ class BookingeConfig(AppConfig):
     name = 'bookinge'
 
     def ready(self):
-        import bookinge.models # এটি নিশ্চিত করবে যে সিগন্যাল কাজ করবে
+        import bookinge.models 

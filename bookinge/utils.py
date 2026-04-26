@@ -4,63 +4,62 @@ import time
 from django.conf import settings
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, From, To, Content
+from urllib.parse import quote  
 
-def check_rezgo_availability(location_query, date_string, user_name="Unknown", preferred_time=None):
+
+def check_rezgo_availability(location_or_sku, date_string, preferred_time=None):
+
     params = {
         'transcode': settings.REZGO_CID,
         'key': settings.REZGO_API_KEY,
         'i': 'search',
-        'q': location_query 
+        'q': location_or_sku
     }
-    print(location_query)
-    print("this is params", params)
-
     try:
         response = requests.get("https://api.rezgo.com/json", params=params)
         data = response.json()
-        print("this is api response",data)
-        print("\n" + "="*50)
-        print(f" REQUEST FROM USER: {user_name}")
-        print(f" SEARCHING FOR LOCATION: {location_query}")
-        print(f" REQUESTED DATE: {date_string}")
-        print("="*50)
+        
+        unique_slots = {} 
+        requested_slot = None
 
         if int(data.get('total', 0)) > 0:
             items = data.get('item', [])
             if isinstance(items, dict): items = [items]
             
             for item in items:
-                print(f" REZGO FOUND ITEM: {item.get('item')}")
-                print(f" SLOT TIME: {item.get('time')}")
-                print(f" ITEM UID: {item.get('uid')}")
-                print(f" PRICE: {item.get('starting')} {item.get('currency_base')}")
+                item_time = item.get('time', '').strip()
+                item_sku = item.get('com') 
                 
-                item_time = item.get('time', '').strip().lower()
+                encoded_time = quote(item_time)
                 
+                booking_url = f"https://{settings.REZGO_DOMAIN}.rezgo.com/book?com={item_sku}&date={date_string}&time={encoded_time}&q=8"
+
+                slot_info = {
+                    'time': item_time,
+                    'booking_url': booking_url,
+                    'sku': item_sku
+                }
+
+                if item_time not in unique_slots:
+                    unique_slots[item_time] = slot_info
+
                 if preferred_time:
-                    user_time = preferred_time.strip().lower().replace(" ", "").lstrip('0')
-                    i_time_clean = item_time.replace(" ", "").lstrip('0')
+                    u_time_clean = preferred_time.strip().lower().replace(" ", "").lstrip('0')
+                    i_time_clean = item_time.lower().replace(" ", "").lstrip('0')
+                    if u_time_clean == i_time_clean:
+                        requested_slot = slot_info
 
-                    if user_time == i_time_clean:
-                        print(f" MATCH SUCCESS: {user_name} matched with {item_time}")
-                        return {'time': item.get('time'), 'uid': item.get('uid')}
-                else:
-                    return {'time': item.get('time'), 'uid': item.get('uid')}
-            
-            print(" NO MATCH: Slot not available for requested time.")
-        else:
-            print(" REZGO API ERROR: No inventory found for this location.")
-        
-        return None
+                
+        return requested_slot, list(unique_slots.values())
+
     except Exception as e:
-        print(f" CRITICAL ERROR: {e}")
-        return None
-        
-def commit_rezgo_booking(data, item_uid):
+        print(f"❌ UTILS_ERROR: {e}")
+        return None, []
 
+
+def commit_rezgo_booking(data, item_uid):
     URL = "https://api.rezgo.com/xml"
     ref_id = f"VOICE-{int(time.time())}"
-
     xml_payload = f"""<?xml version="1.0" encoding="UTF-8"?>
     <request>
         <transcode>{settings.REZGO_CID}</transcode>
@@ -81,7 +80,6 @@ def commit_rezgo_booking(data, item_uid):
             <refid>{ref_id}</refid>
         </payment>
     </request>"""
-
     headers = {'Content-Type': 'application/xml'}
     try:
         response = requests.post(URL, data=xml_payload, headers=headers)
@@ -89,47 +87,35 @@ def commit_rezgo_booking(data, item_uid):
     except:
         return None
 
+
 def sync_to_airtable_generic(table_name, fields):
-
-    if not settings.AIRTABLE_API_KEY or not settings.AIRTABLE_BASE_ID:
-        return False
-
-    url = f"https://api.airtable.com/v0/{settings.AIRTABLE_BASE_ID}/{table_name}"
-    headers = {
-        "Authorization": f"Bearer {settings.AIRTABLE_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    try:
-        response = requests.post(url, json={"fields": fields}, headers=headers)
-        if response.status_code in [200, 201]:
-            print(f"SUCCESS: Synced to Airtable -> {table_name}")
-            return True
-        return False
-    except:
-        return False
-    if not settings.AIRTABLE_API_KEY or not settings.AIRTABLE_BASE_ID:
-        print("❌ Airtable Keys Missing")
-        return False
-
-    url = f"https://api.airtable.com/v0/{settings.AIRTABLE_BASE_ID}/{table_name}"
-    headers = {
-        "Authorization": f"Bearer {settings.AIRTABLE_API_KEY}",
-        "Content-Type": "application/json"
-    }
     
-    payload = {"fields": fields}
-    
+    print(f"--- AIRTABLE SYNC STARTING ---")
+    api_key = settings.AIRTABLE_API_KEY
+    base_id = settings.AIRTABLE_BASE_ID
+    print(f"DEBUG: Table -> {table_name}")
+    print(f"DEBUG: API Key exists -> {'Yes' if api_key else 'No'}")
+    print(f"DEBUG: Base ID exists -> {'Yes' if base_id else 'No'}")
+    if not api_key or not base_id:
+        print("❌ CRITICAL ERROR: API Keys are missing in settings.py!")
+        return False
+    url = f"https://api.airtable.com/v0/{base_id}/{table_name}"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }    
     try:
-        response = requests.post(url, json=payload, headers=headers)
+        print(f"📡 Sending request to Airtable...")
+        response = requests.post(url, json={"fields": fields}, headers=headers, timeout=10)
+        
         if response.status_code in [200, 201]:
-            print(f"✅ Successfully synced to Airtable Table: {table_name}")
+            print(f"✅ SUCCESS: Data is now inside Airtable table: {table_name}")
             return True
         else:
-          
-            print(f"❌ Airtable Error in {table_name}: {response.text}")
+            print(f"❌ API ERROR ({response.status_code}): {response.text}")
             return False
     except Exception as e:
-        print(f"❌ Airtable Request Failed: {e}")
+        print(f"❌ CONNECTION FAILED: {e}")
         return False
 
 def send_ai_reply_via_sendgrid(to_email, subject, content):
@@ -137,8 +123,6 @@ def send_ai_reply_via_sendgrid(to_email, subject, content):
     from_email = From(settings.SENDGRID_FROM_EMAIL, settings.SENDGRID_FROM_NAME)
     to_email_obj = To(to_email)
     content_obj = Content("text/plain", content)
-    
-    
     message = Mail(from_email, to_email_obj, subject, content_obj)
     
     try:
@@ -178,6 +162,7 @@ def send_ai_reply_via_sendgrid(to_email, subject, content):
         print(f"❌ SENDGRID CRITICAL ERROR: {e}")
         return False
 
+
 def handle_venue_outreach(booking_obj):
 
     from .models import Venue
@@ -200,43 +185,18 @@ def handle_venue_outreach(booking_obj):
         }
         sync_to_airtable_pro("Venue Requests", request_fields)
 
+
 def auto_sync_all_rezgo_locations():
-
     from .models import RezgoLocation
-
-    params = {
-        'transcode': settings.REZGO_CID,
-        'key': settings.REZGO_API_KEY,
-        'i': 'search', 
-    }
-
+    params = {'transcode': settings.REZGO_CID, 'key': settings.REZGO_API_KEY, 'i': 'search'}
     try:
-        print("🚀 Fetching items from Rezgo... please wait.")
         response = requests.get("https://api.rezgo.com/json", params=params)
         data = response.json()
-
-        total_items = int(data.get('total', 0))
-        if total_items > 0:
+        if int(data.get('total', 0)) > 0:
             items = data.get('item', [])
             if isinstance(items, dict): items = [items]
-
-            count = 0
             for item in items:
-                name = item.get('item') 
-                uid = item.get('uid')   
-                
-               
-                RezgoLocation.objects.update_or_create(
-                    rezgo_uid=uid,
-                    defaults={'city_name': name}
-                )
-                count += 1
-            
-            print(f"✅ Success! {item.uid} {item.name} locations synced to your Django database.")
+                RezgoLocation.objects.update_or_create(rezgo_uid=item.get('uid'), defaults={'city_name': item.get('item')})
             return True
-        else:
-            print("❌ No items found in Rezgo.")
-            return False
-    except Exception as e:
-        print(f"❌ Error: {e}")
+    except:
         return False

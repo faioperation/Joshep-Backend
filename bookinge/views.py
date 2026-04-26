@@ -1,158 +1,142 @@
 import json
+import time
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from django.core.mail import send_mail
 from django.conf import settings
-from .models import BookingInquiry, RezgoLocation
-from .utils import check_rezgo_availability, commit_rezgo_booking, sync_to_airtable_generic,send_ai_reply_via_sendgrid 
-from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
+from .models import BookingInquiry, RezgoLocation, Venue
+from .utils import check_rezgo_availability, commit_rezgo_booking, sync_to_airtable_generic
+
+# @api_view(['POST'])
+# def process_booking_inquiry(request):
+
+#     try:
+#         data = request.data
+#         user_input = data.get("location") 
+
+#         match = RezgoLocation.objects.filter(city_name__icontains=user_input).first()
+#         rezgo_uid = match.rezgo_uid if match else user_input
+   
+#         inquiry = BookingInquiry.objects.create(
+#             name=data.get("name"),
+#             email=data.get("email"),
+#             location=user_input,
+#             preferred_date=data.get("preferred_date"),
+#             preferred_time=data.get("preferred_time"),
+#         )
 
 
+#         requested_slot, other_slots = check_rezgo_availability(rezgo_uid, inquiry.preferred_date, inquiry.preferred_time)
 
-@swagger_auto_schema(
-    method='post',
-    operation_summary="Process Website Inquiries",
-    operation_description="Receives data from website, checks Rezgo, sends email, and logs to Airtable Leads.",
-    request_body=openapi.Schema(
-        type=openapi.TYPE_OBJECT,
-        required=['name', 'email', 'location', 'preferred_date'],
-        properties={
-            'name': openapi.Schema(type=openapi.TYPE_STRING, example="John Doe"),
-            'email': openapi.Schema(type=openapi.TYPE_STRING, example="john@example.com"),
-            'location': openapi.Schema(type=openapi.TYPE_STRING, description="City Name"),
-            'preferred_date': openapi.Schema(type=openapi.TYPE_STRING, example="2026-03-15"),
-            'preferred_time': openapi.Schema(type=openapi.TYPE_STRING, example="2:00 PM"),
-        }
-    )
-)
+        
+
+#         if requested_slot:
+#             subject = "Good News! Your Bubble Soccer Slot Is Available"
+#             booking_url = requested_slot['booking_url']
+#             email_body = f"Hi {inquiry.name},\n\nGreat news! Your slot is available. Book here: {booking_url}\n\nThanks!"
+#             inquiry.is_available = True
+#             inquiry.save()
+
+         
+#         elif other_slots:
+#             subject = "Alternative Slots Available"
+   
+#             limited_slots = other_slots[:5]
+#             slots_list = "\n".join([f"- {s['time']}: {s['booking_url']}" for s in limited_slots])
+#             email_body = f"Hi {inquiry.name}, unfortunately {inquiry.preferred_time} is full. Try these other times: \n{slots_list}"
+            
+#         else:
+#             subject = "Venue Status Update"
+#             email_body = f"Hi {inquiry.name}, we are checking more slots for you."
+
+
+#         try:
+#             # send_mail(subject, email_body, settings.EMAIL_HOST_USER, [inquiry.email], fail_silently=False)
+#             print(f"✅ Email successfully sent to {inquiry.email}")
+#         except Exception as e:
+#             print(f"❌ Mailer Error: {e}")
+
+ 
+#         sync_to_airtable_generic("Leads", {"Name": inquiry.name, "Email": inquiry.email, "Status": "Processed", "Location": user_input})
+
+#         return Response({"status": "success", "message": "Lead processed and email sent."}, status=201)
+
+#     except Exception as e:
+#         print(f"❌ CRITICAL VIEW ERROR: {e}")
+#         return Response({"error": str(e)}, status=400)
+
+# AirTable ------------------------------>>><><><><>
+
 @api_view(['POST'])
 def process_booking_inquiry(request):
-
+    """ওয়েবসাইট থেকে আসা লিড এয়ারটেবল 'Leads' টেবিলে পাঠাবে।"""
     try:
         data = request.data
-        city_name = data.get("location")
+        user_input = data.get("location") 
 
-        try:
-            location_entry = RezgoLocation.objects.get(city_name=city_name)
-            rezgo_uid = location_entry.rezgo_uid
-        except:
-            rezgo_uid = city_name 
-
+        # ১. ডাটাবেজ থেকে রেজগো আইডি খুঁজে বের করা
+        match = RezgoLocation.objects.filter(city_name__icontains=user_input).first()
+        rezgo_uid = match.rezgo_uid if match else user_input
+   
+        # ২. জ্যাঙ্গো ডাটাবেজে সেভ করা
         inquiry = BookingInquiry.objects.create(
             name=data.get("name"),
-            phone=data.get("phone", "N/A"),
             email=data.get("email"),
-            location=city_name,
+            location=user_input,
+            phone=data.get("phone", "N/A"),
             preferred_date=data.get("preferred_date"),
             preferred_time=data.get("preferred_time"),
         )
-        
-        slot = check_rezgo_availability(rezgo_uid, inquiry.preferred_date, inquiry.preferred_time)
-        print("slot",slot)
 
+        # ৩. রেজগো চেক করা
+        requested_slot, other_slots = check_rezgo_availability(rezgo_uid, inquiry.preferred_date, inquiry.preferred_time)
 
-        if slot:
-            inquiry.is_available = True
-            inquiry.save()
-
-            booking_url = f"https://{settings.REZGO_DOMAIN}.rezgo.com/book?item={slot['uid']}&date={inquiry.preferred_date}"
-            subject = "Good News! Your Bubble Soccer Slot Is Available"
-            email_body = f"Hi {inquiry.name},\n\nGreat news! We found a slot in {inquiry.location}.\n\nClick here to book now: {booking_url}\n\nThanks!"
+        # ৪. ইমেইল বডি তৈরি করা (ইমেইল আপাতত অফ রাখা হয়েছে)
+        if requested_slot:
+            subject = "Slot Available"
+            email_body = "Your slot is ready."
         else:
-            subject = "Venue Availability Update"
-            email_body = f"Hi {inquiry.name}, we are checking alternative slots for you in {inquiry.location}. We will update you shortly."
+            subject = "Waitlist"
+            email_body = "We are checking more slots."
 
-       
-        send_mail(
-            subject,
-            email_body,
-            settings.EMAIL_HOST_USER, 
-            [inquiry.email],  
-            fail_silently=False,
-        )
+        # ৫. এয়ারটেবল 'Leads' টেবিলে ডাটা পাঠানো (সঠিক কলাম নাম সহ)
+        lead_fields = {
+            "Name": inquiry.name,
+            "Phone": inquiry.phone,
+            "Email": inquiry.email,
+            "Location": user_input,      # 'City' এর বদলে 'Location' লিখুন (আপনার এয়ারটেবল অনুযায়ী)
+            "Date": str(inquiry.preferred_date), 
+            "Time": inquiry.preferred_time or "N/A",
+            "Status": "Processed"
+        }
+        
+        print(f"🚀 Syncing Lead to Airtable: {inquiry.name}")
+        sync_to_airtable_generic("Leads", lead_fields)
 
-          
-         
-        return Response({"status": "success", "message": "Inquiry processed and SMTP email sent."}, status=201)
+        return Response({"status": "success", "message": "Lead synced to Airtable."}, status=201)
 
     except Exception as e:
-        print(f"SMTP_VIEW_ERROR: {e}")
-        return Response({"status": "error", "message": str(e)}, status=400)
+        print(f"❌ View Error: {e}")
+        return Response({"error": str(e)}, status=400)
 
 
 
-
-
-@swagger_auto_schema(
-    method='post',
-    operation_summary="Instant Voice AI Booking",
-    operation_description="Triggered by Voice AI. Directly commits to Rezgo and logs to Airtable Bookings.",
-)
-
+# --------------------------------
 
 @api_view(['POST'])
 def voice_booking_handler(request):
     try:
         data = request.data
-        city_name = data.get("location")
-        
-        category = data.get("event_type", "General") 
+        user_input = data.get("location")
+        match = RezgoLocation.objects.filter(city_name__icontains=user_input).first()
+        uid = match.rezgo_uid if match else user_input
 
-        try:
-            loc = RezgoLocation.objects.get(city_name=city_name)
-            uid = loc.rezgo_uid
-        except RezgoLocation.DoesNotExist:
-            uid = city_name
+        requested_slot, _ = check_rezgo_availability(uid, data['preferred_date'], data['preferred_time'])
 
-        slot = check_rezgo_availability(uid, data['preferred_date'], data['preferred_time'])
-
-        if slot:
-
-            rezgo_response = commit_rezgo_booking(data, uid)
-            booking_id = "RZ-" + str(int(time.time()))  
-
-            booking_fields = {
-                "Booking ID": booking_id,
-                "Name": data['name'],
-                "Email": data['email'],
-                "Phone": data.get('phone', 'N/A'),
-                "City": city_name,
-                "Date": data['preferred_date'],
-                "Time": data['preferred_time'],
-                "Package": data.get('package', 'Double Header'),
-                "Group Size": data.get('group_size', '10-15 people'),
-                "Status": "Confirmed"
-            }
-            sync_to_airtable_generic("Bookings", booking_fields)
-
-            try:
-                venue = Venue.objects.filter(city=city_name, category=category).order_by('priority').first()
-                
-                if venue:
-                    venue_subject = f"ACTION REQUIRED: New Booking for {city_name}"
-                    venue_content = f"Hi {venue.venue_name},\n\nWe have a new booking confirmed for {data['preferred_date']} at {data['preferred_time']}.\n\nPlease let us know if the venue is available.\n\nThanks!"
-                    
-                    send_mail(venue_subject, venue_content, settings.EMAIL_HOST_USER, [venue.contact_email])
-
-                    request_fields = {
-                        "Linked Booking": [booking_id], 
-                        "Venue": venue.venue_name,
-                        "Email Sent": True,
-                        "Status": "Pending"
-                    }
-                    sync_to_airtable_generic("Venue Requests", request_fields)
-            except:
-                print("Venue Outreach failed, but booking was successful.")
-
-            customer_subject = "Booking Confirmed via Voice Assistant"
-            customer_body = f"Hi {data['name']},\n\nYour booking is confirmed for {city_name} on {data['preferred_date']}.\n\nPlease pay the deposit using the link sent previously.\n\nThanks!"
-            send_mail(customer_subject, customer_body, settings.EMAIL_HOST_USER, [data['email']])
-            
-            return Response({"status": "success", "message": "Booking created, logged, and venue notified!"})
-        
-        else:
-            return Response({"status": "failed", "message": "Slot full."}, status=200)
-
+        if requested_slot:
+            commit_rezgo_booking(data, uid)
+            sync_to_airtable_generic("Bookings", {"Booking ID": "AI-V", "Name": data['name'], "Status": "Confirmed"})
+            return Response({"status": "success"})
+        return Response({"status": "failed"})
     except Exception as e:
-        return Response({"status": "error", "message": str(e)}, status=400)
+        return Response({"error": str(e)}, status=400)

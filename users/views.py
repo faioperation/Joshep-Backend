@@ -24,10 +24,9 @@ from .serializers import (
     ResetPasswordSerializer,
 )
 
-OTP_STORAGE = {}  # simple temporary storage
+OTP_STORAGE = {}   
 
-
-# @method_decorator(csrf_exempt, name='dispatch')
+ 
 class LoginView(APIView):
     permission_classes = [AllowAny]  
 
@@ -36,7 +35,7 @@ class LoginView(APIView):
         if serializer.is_valid():
             user = serializer.validated_data["user"]
             
-            # JWT Token জেনারেট করা
+ 
             refresh = RefreshToken.for_user(user)
             
             return Response({
@@ -47,7 +46,6 @@ class LoginView(APIView):
             }, status=status.HTTP_200_OK)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-# @method_decorator(csrf_exempt, name='dispatch')
 class ForgotPasswordView(APIView):
     def post(self, request):
         serializer = ForgotPasswordSerializer(data=request.data)
@@ -69,7 +67,6 @@ class ForgotPasswordView(APIView):
         )
 
         return Response({"message": "OTP sent successfully"}, status=status.HTTP_200_OK)
-# @method_decorator(csrf_exempt, name='dispatch')
 class VerifyOTPView(APIView):
     def post(self, request):
         serializer = OTPVerifySerializer(data=request.data)
@@ -102,7 +99,6 @@ class VerifyOTPView(APIView):
         cache.delete(f"otp_{email}")
         return True
     
-# @method_decorator(csrf_exempt, name='dispatch')
 class ResendOTPView(APIView):
     def post(self, request):
         email = request.data.get("email")
@@ -125,15 +121,12 @@ class ResendOTPView(APIView):
         )
 
         return Response({"message": "OTP resent successfully"}, status=200)
-# @method_decorator(csrf_exempt, name='dispatch')
 class FAQViewSet(viewsets.ModelViewSet):
     queryset=FAQ.objects.all()
     serializer_class=FAQSerializers
     
 class ResetPasswordView(APIView):
-    """
-    OTP verify howar por ei view-te new_password pathate hobe.
-    """
+
     def post(self, request):
         serializer = ResetPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -141,13 +134,13 @@ class ResetPasswordView(APIView):
         email = serializer.validated_data.get("email")
         new_password = serializer.validated_data.get("new_password")
         
-        # User khuje ber kora ebong password set kora
+
         try:
             user = Users.objects.get(email=email)
             user.set_password(new_password)
             user.save()
             
-            # Password reset hoye gele storage theke OTP muche fela bhalo
+
             if email in OTP_STORAGE:
                 del OTP_STORAGE[email]
                 
@@ -158,6 +151,5 @@ class ResetPasswordView(APIView):
 
 class LogoutView(APIView):
     def post(self, request):
-        # Django-r built-in logout function jeta session clear kore dey
         logout(request)
         return Response({"message": "Logout successful"}, status=status.HTTP_200_OK)

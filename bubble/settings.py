@@ -28,16 +28,13 @@ REZGO_DOMAIN = os.getenv('REZGO_DOMAIN')
 
 
 # ==========================
-# CORE SECURITY
+#-----------------------# ----------------------# -------------------------------  CORE SECURITY -----------------------------------------------------------------------------------------------
 # ==========================
 
 SECRET_KEY = config('SECRET_KEY')
 DEBUG = env_bool('DEBUG', default=False)
 
-ALLOWED_HOSTS = config(
-    'ALLOWED_HOSTS',
-    cast=lambda v: [s.strip() for s in v.split(',')]
-)
+ALLOWED_HOSTS =  ['*']
 
 AUTH_USER_MODEL = 'users.Users'
 
@@ -92,7 +89,7 @@ WSGI_APPLICATION = 'bubble.wsgi.application'
 
 
 # ==========================
-# REST FRAMEWORK
+#  REST FRAMEWORK
 # ==========================
 
 REST_FRAMEWORK = {
